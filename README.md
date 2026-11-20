@@ -4,6 +4,7 @@ A marina management system for berth-based marinas: berths, customers and
 vessels, agreements, bookings, billing, receivables and occupancy reporting.
 
 - Module plan: [docs/PLAN.md](docs/PLAN.md)
+- What PacSoft MMS NG contains, and what we keep: [docs/pacsoft-study.md](docs/pacsoft-study.md)
 - PacSoft data mapping for migration: [docs/pacsoft-mapping.md](docs/pacsoft-mapping.md)
 - How PacSoft was studied: [docs/clean-room.md](docs/clean-room.md)
 
@@ -11,7 +12,7 @@ vessels, agreements, bookings, billing, receivables and occupancy reporting.
 
 | Path | What |
 |------|------|
-| `packages/domain` | Business rules (occupancy, ownership by month, double-booking, proration, GST, ageing, allocation) with unit tests |
+| `packages/domain` | Business rules (occupancy, ownership by month, double-booking, proration, GST, ageing, allocation, meter usage) with unit tests |
 | `apps/api` | Express + Prisma API on PostgreSQL, one router per module |
 | `apps/web` | React + Vite + Tailwind front end |
 

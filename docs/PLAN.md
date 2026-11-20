@@ -5,10 +5,11 @@ MarinaManagementOS is a marina management system for berth-based marinas
 work PacSoft MMS NG does today that a marina actually needs to operate, and
 leaves out the rest.
 
-How this plan was made (see [clean-room.md](clean-room.md)): from the
-PacSoft database schema that our own read-only reporting SQL already uses,
-from the screens and workflows staff use every day, and from our own
-reporting rules. No PacSoft program code was decompiled or copied.
+How this plan was made (see [clean-room.md](clean-room.md)): from a study of
+the PacSoft MMS NG 7.20.6 dev install (screen and table names, import
+templates; see [pacsoft-study.md](pacsoft-study.md)), from the PacSoft schema
+our own read-only reporting SQL already uses, and from our own reporting
+rules. No PacSoft program code was decompiled or copied.
 
 ## Scope rule
 
@@ -29,15 +30,20 @@ occupancy. Everything else is Phase 2 or out of scope.
 | 7 | Billing and invoicing | MVP | Billing runs, invoices, credit notes, GL export |
 | 8 | Receivables | MVP | Receipts, allocation, aged trial balance, statements, debtor letters |
 | 9 | Reporting | MVP | Occupancy, utilisation, berth status, compliance, ATB |
-| 10 | Data migration | MVP | One-off read-only import from PacSoft |
+| 10 | Data migration and imports | MVP | One-off import from PacSoft; CSV imports for receipts, charges, readings |
+| 15 | Utilities (power, water) | MVP | Meters per berth, readings import, usage invoicing |
 | 11 | Customer portal | Phase 2 | Self-service invoices, payments, document upload, casual booking |
 | 12 | Waitlist | Phase 2 | Berth applications, ranking, offers |
 | 13 | Access control | Phase 2 | Gate cards and fobs linked to agreements |
-| 14 | Accounting sync | Phase 2 | Live sync to the accounting system instead of file export |
+| 14 | Accounting sync | Phase 2 | Live sync to Xero instead of file export |
+| 16 | Card payments and direct debit | Phase 2 | Hosted card payments (Windcave), direct debit runs |
+| 17 | Visual marina map | Phase 2 | Berth map coloured by status |
+| 18 | Rental pool | Phase 2 | Private owners pool berths for re-letting, revenue shared |
 
-Out of scope (not needed to operate a berth marina, or done by other
-systems): fuel and retail POS, boatyard work orders and haul-out
-scheduling, marketing/CRM campaigns, payroll, generic document management.
+Out of scope (PacSoft has these, but a berth marina does not need them to
+operate, or other systems do them): POS and fuel sales, stock and
+purchasing, boatyard jobs, haul-out and timesheets, asset maintenance,
+memberships, marketing notes, Quick Query (replaced by reports with export).
 
 ### 1. Core and admin
 - Marina, Pier (PacSoft: `tmmMarina`, `mmbePier`).
@@ -81,11 +87,15 @@ lines (`ngServiceHeader`, `ngServiceDetail`).
 - Rule from our reporting: the ownership in force on the 1st of a month
   applies to that month.
 - Rule: a private berth with a current ownership counts as 100% occupied.
+- Berth sale/transfer: end one ownership and start the next on the same
+  day, carrying any sublease over or ending it.
+- Renewal: roll a licence to a new term at the new rate.
 
 ### 5. Bookings and availability
 - Availability search by date range and vessel length, beam and draft.
 - Calendar grid by pier and berth.
-- Arrival and departure (check-in/out) with actual dates.
+- Check-in, check-out and berth moves (vessel moves to another berth:
+  end one agreement, start another, prorate both).
 - Double-booking is prevented in the database (no two holding agreements
   on one berth overlap in time).
 
@@ -94,11 +104,17 @@ lines (`ngServiceHeader`, `ngServiceDetail`).
   casual night, power, liveaboard, admin fees.
 - Rate: per metre per day/month/year or flat, by berth type and season,
   with effective dates. Prices are GST-exclusive; GST 15%.
+- Annual price review: apply a % increase to all rates or to selected
+  agreements from a date (PacSoft "update contract new rate").
+- Discount codes and credit terms per customer.
 
 ### 7. Billing and invoicing
 - Billing run: for a period, create invoice lines for every active
   agreement, prorated by days (PacSoft: `tmmTransactionHeader`,
   `tmmTransactionDetail`, `tmmTransactionType`).
+- Invoice schedules: monthly, quarterly, annual in advance, or seasonal.
+- Owner annual charges: owners of private berths are billed an annual
+  charge made of components (maintenance, insurance, rates).
 - Invoice, credit note, adjustment. Invoices are never edited once posted;
   corrections are credit notes.
 - GL export: a posted-transactions file by GL code and period
@@ -119,6 +135,13 @@ lines (`ngServiceHeader`, `ngServiceDetail`).
 - Berth status today, future availability, vessel compliance, ATB.
 - Every report exports to CSV and Excel.
 
+### 15. Utilities
+- Meter per berth or pedestal, meter type (power, water), unit rate.
+- Readings import (columns: Meter, ReadingDate, ReadingTime, UnitsUsed,
+  CurrentReading), usage = this reading minus last, billed to whoever
+  holds the berth on the reading date.
+- Live pedestal integrations (Rolec, PULS) are Phase 2.
+
 ### 10. Data migration
 - Read-only extract from PacSoft (SELECT only, run by Finance/IT, never
   from this app against production), mapped by
@@ -129,8 +152,8 @@ lines (`ngServiceHeader`, `ngServiceDetail`).
 ## Build order
 
 1. Core, berths, customers and vessels (the register).
-2. Agreements and availability (who is where).
-3. Products, billing, receivables (money).
+2. Agreements, availability, check-in/out and moves (who is where).
+3. Products, billing, annual charges, utilities, receivables (money).
 4. Reporting, then migration and a parallel month against PacSoft.
 
 ## Tech stack

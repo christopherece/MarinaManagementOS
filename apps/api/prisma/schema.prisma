@@ -82,22 +82,22 @@ enum BerthStatus {
 }
 
 model Berth {
-  id               String      @id @default(cuid())
+  id               String        @id @default(cuid())
   marinaId         String
-  marina           Marina      @relation(fields: [marinaId], references: [id])
+  marina           Marina        @relation(fields: [marinaId], references: [id])
   pierId           String?
-  pier             Pier?       @relation(fields: [pierId], references: [id])
+  pier             Pier?         @relation(fields: [pierId], references: [id])
   typeId           String
-  type             BerthType   @relation(fields: [typeId], references: [id])
+  type             BerthType     @relation(fields: [typeId], references: [id])
   name             String // e.g. A48, F131
-  nominalLengthM   Decimal     @db.Decimal(6, 2)
-  nominalWidthM    Decimal?    @db.Decimal(6, 2)
-  nominalDepthM    Decimal?    @db.Decimal(6, 2)
-  actualLengthM    Decimal?    @db.Decimal(6, 2)
-  actualWidthM     Decimal?    @db.Decimal(6, 2)
-  actualDepthM     Decimal?    @db.Decimal(6, 2)
-  status           BerthStatus @default(ACTIVE)
-  decommissionedOn DateTime?   @db.Date
+  nominalLengthM   Decimal       @db.Decimal(6, 2)
+  nominalWidthM    Decimal?      @db.Decimal(6, 2)
+  nominalDepthM    Decimal?      @db.Decimal(6, 2)
+  actualLengthM    Decimal?      @db.Decimal(6, 2)
+  actualWidthM     Decimal?      @db.Decimal(6, 2)
+  actualDepthM     Decimal?      @db.Decimal(6, 2)
+  status           BerthStatus   @default(ACTIVE)
+  decommissionedOn DateTime?     @db.Date
   agreements       Agreement[]
   invoiceLines     InvoiceLine[]
   blocks           BerthBlock[]
@@ -119,8 +119,8 @@ model BerthBlock {
 // ---------- 3. Customers and vessels ----------
 
 model Customer {
-  id              String       @id @default(cuid())
-  isCompany       Boolean      @default(false)
+  id              String         @id @default(cuid())
+  isCompany       Boolean        @default(false)
   firstName       String?
   surname         String?
   companyName     String?
@@ -128,30 +128,30 @@ model Customer {
   mobile          String?
   addressLines    String[]
   postcode        String?
-  countryCode     String       @default("NZ")
-  emailStatements Boolean      @default(true)
+  countryCode     String         @default("NZ")
+  emailStatements Boolean        @default(true)
   vessels         Vessel[]
-  agreements      Agreement[]  @relation("AgreementCustomer")
-  ownerships      Agreement[]  @relation("AgreementOwner")
+  agreements      Agreement[]    @relation("AgreementCustomer")
+  ownerships      Agreement[]    @relation("AgreementOwner")
   invoices        Invoice[]
   receipts        Receipt[]
   letters         DebtorLetter[]
   legacyId        String?
-  createdAt       DateTime     @default(now())
+  createdAt       DateTime       @default(now())
 }
 
 model Vessel {
-  id              String               @id @default(cuid())
-  ownerId         String
-  owner           Customer             @relation(fields: [ownerId], references: [id])
-  name            String
-  lengthM         Decimal              @db.Decimal(6, 2)
-  beamM           Decimal?             @db.Decimal(6, 2)
-  draftM          Decimal?             @db.Decimal(6, 2)
-  shorePowerReq   String?
-  documents       ComplianceDocument[]
-  agreements      Agreement[]
-  legacyId        String?
+  id            String               @id @default(cuid())
+  ownerId       String
+  owner         Customer             @relation(fields: [ownerId], references: [id])
+  name          String
+  lengthM       Decimal              @db.Decimal(6, 2)
+  beamM         Decimal?             @db.Decimal(6, 2)
+  draftM        Decimal?             @db.Decimal(6, 2)
+  shorePowerReq String?
+  documents     ComplianceDocument[]
+  agreements    Agreement[]
+  legacyId      String?
 }
 
 enum ComplianceKind {
@@ -353,11 +353,66 @@ model Allocation {
 }
 
 model DebtorLetter {
-  id         String   @id @default(cuid())
-  customerId String
-  customer   Customer @relation(fields: [customerId], references: [id])
-  level      Int // 1 = reminder, 2 = second notice, 3 = final notice
+  id           String   @id @default(cuid())
+  customerId   String
+  customer     Customer @relation(fields: [customerId], references: [id])
+  level        Int // 1 = reminder, 2 = second notice, 3 = final notice
   balanceCents Int
-  sentOn     DateTime @db.Date
-  channel    String // EMAIL, POST
+  sentOn       DateTime @db.Date
+  channel      String // EMAIL, POST
+}
+
+// ---------- 15. Utilities ----------
+
+enum MeterKind {
+  POWER
+  WATER
+}
+
+model Meter {
+  id        String         @id @default(cuid())
+  code      String         @unique // as on the readings import "Meter" column
+  kind      MeterKind
+  berthId   String?
+  productId String? // product billed for usage (unit rate)
+  active    Boolean        @default(true)
+  readings  MeterReading[]
+}
+
+model MeterReading {
+  id            String   @id @default(cuid())
+  meterId       String
+  meter         Meter    @relation(fields: [meterId], references: [id])
+  readAt        DateTime
+  reading       Decimal  @db.Decimal(12, 3) // CurrentReading
+  unitsUsed     Decimal? @db.Decimal(12, 3) // from import, or derived
+  invoiceLineId String? // set once billed
+
+  @@unique([meterId, readAt])
+}
+
+// ---------- Notes and documents ----------
+
+model Note {
+  id          String   @id @default(cuid())
+  entity      String // Customer, Vessel, Agreement, Berth
+  entityId    String
+  kind        String // NOTE, CALL, EMAIL, LETTER
+  body        String
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  @@index([entity, entityId])
+}
+
+model Attachment {
+  id         String   @id @default(cuid())
+  entity     String
+  entityId   String
+  fileName   String
+  mimeType   String
+  storageKey String // object storage key; files are not kept in the database
+  uploadedAt DateTime @default(now())
+
+  @@index([entity, entityId])
 }
