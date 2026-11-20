@@ -2,6 +2,8 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, NavLink, Route, Routes } from "react-router-dom";
 import "./index.css";
+import { AuthProvider, useAuth } from "./auth";
+import Login from "./pages/Login";
 import Berths from "./pages/Berths";
 import Occupancy from "./pages/Occupancy";
 import Planned from "./pages/Planned";
@@ -17,10 +19,17 @@ const modules = [
 ];
 
 function App() {
+  const { user, loading, signOut } = useAuth();
+  if (loading) return <p className="p-8 text-slate-500">Loading…</p>;
+  if (!user) return <Login />;
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 md:flex">
       <nav className="border-b border-slate-200 bg-white p-4 md:w-56 md:border-r md:border-b-0">
-        <div className="mb-4 font-semibold">MarinaManagementOS</div>
+        <div className="mb-1 font-semibold">MarinaManagementOS</div>
+        <div className="mb-4 text-xs text-slate-500">
+          {user.name} · {user.role.replace("_", " ").toLowerCase()} ·{" "}
+          <button className="underline" onClick={signOut}>Sign out</button>
+        </div>
         <ul className="flex flex-wrap gap-2 md:flex-col">
           {modules.map((m) => (
             <li key={m.path}>
@@ -40,6 +49,6 @@ function App() {
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <BrowserRouter><App /></BrowserRouter>
+    <BrowserRouter><AuthProvider><App /></AuthProvider></BrowserRouter>
   </StrictMode>,
 );

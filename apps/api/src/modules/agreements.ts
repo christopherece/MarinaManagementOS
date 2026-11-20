@@ -2,9 +2,11 @@ import { Router } from "express";
 import { z } from "zod";
 import { clashes } from "@mmos/domain";
 import { prisma } from "../db.js";
+import { writeRoles } from "../auth.js";
 import { h, HttpError } from "../http.js";
 
 export const agreements = Router();
+const canWrite = writeRoles("BERTH_OFFICE");
 
 const AgreementInput = z.object({
   type: z.enum(["LICENCE", "CASUAL", "OWNERSHIP", "SUBLEASE", "PRIVATE_OCCUPANCY"]),
@@ -27,7 +29,7 @@ agreements.get("/agreements", h(async (req, res) => {
   res.json(await prisma.agreement.findMany({ where: q, include: { berth: true, customer: true, vessel: true }, orderBy: { startOn: "desc" } }));
 }));
 
-agreements.post("/agreements", h(async (req, res) => {
+agreements.post("/agreements", canWrite, h(async (req, res) => {
   const input = AgreementInput.parse(req.body);
   if (input.endOn && input.endOn < input.startOn) throw new HttpError(400, "End date is before start date");
   if (input.type === "OWNERSHIP" && !input.ownershipCategory) throw new HttpError(400, "Ownership needs a category");
