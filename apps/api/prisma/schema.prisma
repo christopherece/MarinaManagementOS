@@ -1,0 +1,418 @@
+// MarinaManagementOS data model. See docs/PLAN.md for the modules and
+// docs/pacsoft-mapping.md for how PacSoft data maps onto these tables.
+// Money is stored in integer cents. Dates without time use @db.Date.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- 1. Core and admin ----------
+
+model Marina {
+  id        String   @id @default(cuid())
+  code      String   @unique // e.g. WH, VM, SM
+  name      String
+  piers     Pier[]
+  berths    Berth[]
+  createdAt DateTime @default(now())
+}
+
+model Pier {
+  id       String  @id @default(cuid())
+  marinaId String
+  marina   Marina  @relation(fields: [marinaId], references: [id])
+  name     String
+  berths   Berth[]
+
+  @@unique([marinaId, name])
+}
+
+enum Role {
+  ADMIN
+  BERTH_OFFICE
+  FINANCE
+  READ_ONLY
+}
+
+model User {
+  id        String     @id @default(cuid())
+  email     String     @unique
+  name      String
+  role      Role       @default(READ_ONLY)
+  active    Boolean    @default(true)
+  auditLogs AuditLog[]
+  createdAt DateTime   @default(now())
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
+  entity     String // e.g. Agreement, Invoice
+  entityId   String
+  action     String // CREATE, UPDATE, POST, CANCEL
+  changes    Json?
+  occurredAt DateTime @default(now())
+
+  @@index([entity, entityId])
+}
+
+model Setting {
+  key   String @id
+  value Json
+}
+
+// ---------- 2. Berths ----------
+
+model BerthType {
+  id     String  @id @default(cuid())
+  name   String  @unique // Marina Berth, Pile, Swing Mooring, Hardstand
+  berths Berth[]
+}
+
+enum BerthStatus {
+  ACTIVE
+  INACTIVE
+  DECOMMISSIONED
+}
+
+model Berth {
+  id               String        @id @default(cuid())
+  marinaId         String
+  marina           Marina        @relation(fields: [marinaId], references: [id])
+  pierId           String?
+  pier             Pier?         @relation(fields: [pierId], references: [id])
+  typeId           String
+  type             BerthType     @relation(fields: [typeId], references: [id])
+  name             String // e.g. A48, F131
+  nominalLengthM   Decimal       @db.Decimal(6, 2)
+  nominalWidthM    Decimal?      @db.Decimal(6, 2)
+  nominalDepthM    Decimal?      @db.Decimal(6, 2)
+  actualLengthM    Decimal?      @db.Decimal(6, 2)
+  actualWidthM     Decimal?      @db.Decimal(6, 2)
+  actualDepthM     Decimal?      @db.Decimal(6, 2)
+  status           BerthStatus   @default(ACTIVE)
+  decommissionedOn DateTime?     @db.Date
+  agreements       Agreement[]
+  invoiceLines     InvoiceLine[]
+  blocks           BerthBlock[]
+  legacyId         String? // PacSoft mmbeID, for migration reconciliation
+
+  @@unique([marinaId, name])
+}
+
+/// Days a berth is not available (maintenance, dredging). Reduces available days.
+model BerthBlock {
+  id      String   @id @default(cuid())
+  berthId String
+  berth   Berth    @relation(fields: [berthId], references: [id])
+  startOn DateTime @db.Date
+  endOn   DateTime @db.Date
+  reason  String
+}
+
+// ---------- 3. Customers and vessels ----------
+
+model Customer {
+  id              String         @id @default(cuid())
+  isCompany       Boolean        @default(false)
+  firstName       String?
+  surname         String?
+  companyName     String?
+  email           String?
+  mobile          String?
+  addressLines    String[]
+  postcode        String?
+  countryCode     String         @default("NZ")
+  emailStatements Boolean        @default(true)
+  vessels         Vessel[]
+  agreements      Agreement[]    @relation("AgreementCustomer")
+  ownerships      Agreement[]    @relation("AgreementOwner")
+  invoices        Invoice[]
+  receipts        Receipt[]
+  letters         DebtorLetter[]
+  legacyId        String?
+  createdAt       DateTime       @default(now())
+}
+
+model Vessel {
+  id            String               @id @default(cuid())
+  ownerId       String
+  owner         Customer             @relation(fields: [ownerId], references: [id])
+  name          String
+  lengthM       Decimal              @db.Decimal(6, 2)
+  beamM         Decimal?             @db.Decimal(6, 2)
+  draftM        Decimal?             @db.Decimal(6, 2)
+  shorePowerReq String?
+  documents     ComplianceDocument[]
+  agreements    Agreement[]
+  legacyId      String?
+}
+
+enum ComplianceKind {
+  INSURANCE
+  ELECTRICAL_WOF
+  TAG_AND_TEST
+}
+
+model ComplianceDocument {
+  id        String         @id @default(cuid())
+  vesselId  String
+  vessel    Vessel         @relation(fields: [vesselId], references: [id])
+  kind      ComplianceKind
+  provider  String? // insurer, inspector
+  reference String? // policy or certificate number
+  issuedOn  DateTime?      @db.Date
+  expiresOn DateTime?      @db.Date
+
+  @@index([kind, expiresOn])
+}
+
+// ---------- 4. Agreements ----------
+
+enum AgreementType {
+  LICENCE
+  CASUAL
+  OWNERSHIP
+  SUBLEASE
+  PRIVATE_OCCUPANCY
+}
+
+enum AgreementStatus {
+  QUOTE
+  BOOKED
+  RENTED
+  COMPLETED
+  CANCELLED
+}
+
+enum OwnershipCategory {
+  PANUKU
+  PRIVATE
+}
+
+/// Who holds or owns a berth for a period. Only BOOKED and RENTED hold the berth.
+/// Overlap of holding LICENCE/CASUAL/SUBLEASE agreements on one berth is blocked
+/// in the API (domain `clashes`); add a Postgres exclusion constraint in a migration.
+model Agreement {
+  id                String             @id @default(cuid())
+  type              AgreementType
+  status            AgreementStatus    @default(QUOTE)
+  berthId           String
+  berth             Berth              @relation(fields: [berthId], references: [id])
+  customerId        String
+  customer          Customer           @relation("AgreementCustomer", fields: [customerId], references: [id])
+  vesselId          String?
+  vessel            Vessel?            @relation(fields: [vesselId], references: [id])
+  productId         String?
+  product           Product?           @relation(fields: [productId], references: [id])
+  startOn           DateTime           @db.Date
+  endOn             DateTime?          @db.Date // null = open-ended
+  arrivedAt         DateTime?
+  departedAt        DateTime?
+  // Ownership fields (type OWNERSHIP)
+  ownershipCategory OwnershipCategory?
+  // Sublease / private occupancy link to the ownership it sits under
+  parentId          String?
+  parent            Agreement?         @relation("AgreementParent", fields: [parentId], references: [id])
+  children          Agreement[]        @relation("AgreementParent")
+  ownerId           String?
+  owner             Customer?          @relation("AgreementOwner", fields: [ownerId], references: [id])
+  invoiceLines      InvoiceLine[]
+  notes             String?
+  legacyId          String? // PacSoft sdID
+  createdAt         DateTime           @default(now())
+
+  @@index([berthId, startOn, endOn])
+  @@index([customerId])
+}
+
+// ---------- 6. Products and pricing ----------
+
+enum RateBasis {
+  PER_METRE_PER_DAY
+  PER_METRE_PER_MONTH
+  FLAT_PER_MONTH
+  FLAT_PER_DAY
+}
+
+model Product {
+  id         String        @id @default(cuid())
+  code       String        @unique
+  name       String
+  glCode     String
+  gstRate    Decimal       @default(0.15) @db.Decimal(5, 4)
+  rates      Rate[]
+  agreements Agreement[]
+  lines      InvoiceLine[]
+  active     Boolean       @default(true)
+}
+
+model Rate {
+  id          String    @id @default(cuid())
+  productId   String
+  product     Product   @relation(fields: [productId], references: [id])
+  basis       RateBasis
+  amountCents Int // GST-exclusive
+  berthTypeId String? // null = any berth type
+  effectiveOn DateTime  @db.Date
+  endsOn      DateTime? @db.Date
+
+  @@index([productId, effectiveOn])
+}
+
+// ---------- 7. Billing and invoicing ----------
+
+enum InvoiceKind {
+  INVOICE
+  CREDIT_NOTE
+}
+
+enum InvoiceStatus {
+  DRAFT
+  POSTED
+  VOID
+}
+
+model BillingRun {
+  id         String    @id @default(cuid())
+  periodFrom DateTime  @db.Date
+  periodTo   DateTime  @db.Date
+  marinaId   String?
+  status     String    @default("DRAFT") // DRAFT, POSTED
+  invoices   Invoice[]
+  createdAt  DateTime  @default(now())
+}
+
+model Invoice {
+  id           String        @id @default(cuid())
+  number       String        @unique
+  kind         InvoiceKind   @default(INVOICE)
+  status       InvoiceStatus @default(DRAFT)
+  customerId   String
+  customer     Customer      @relation(fields: [customerId], references: [id])
+  billingRunId String?
+  billingRun   BillingRun?   @relation(fields: [billingRunId], references: [id])
+  issuedOn     DateTime      @db.Date
+  dueOn        DateTime      @db.Date
+  netCents     Int
+  gstCents     Int
+  grossCents   Int
+  lines        InvoiceLine[]
+  allocations  Allocation[]
+  creditsId    String? // credit note -> the invoice it corrects
+  postedAt     DateTime?
+  legacyId     String?
+
+  @@index([customerId, dueOn])
+}
+
+model InvoiceLine {
+  id          String     @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice    @relation(fields: [invoiceId], references: [id])
+  productId   String
+  product     Product    @relation(fields: [productId], references: [id])
+  agreementId String?
+  agreement   Agreement? @relation(fields: [agreementId], references: [id])
+  berthId     String?
+  berth       Berth?     @relation(fields: [berthId], references: [id])
+  description String
+  periodFrom  DateTime?  @db.Date
+  periodTo    DateTime?  @db.Date
+  days        Int? // feeds occupancy paid days
+  netCents    Int
+  gstCents    Int
+}
+
+// ---------- 8. Receivables ----------
+
+model Receipt {
+  id          String       @id @default(cuid())
+  customerId  String
+  customer    Customer     @relation(fields: [customerId], references: [id])
+  receivedOn  DateTime     @db.Date
+  method      String // EFT, card, cash
+  reference   String?
+  amountCents Int
+  allocations Allocation[]
+}
+
+model Allocation {
+  id        String  @id @default(cuid())
+  receiptId String
+  receipt   Receipt @relation(fields: [receiptId], references: [id])
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id])
+  cents     Int
+}
+
+model DebtorLetter {
+  id           String   @id @default(cuid())
+  customerId   String
+  customer     Customer @relation(fields: [customerId], references: [id])
+  level        Int // 1 = reminder, 2 = second notice, 3 = final notice
+  balanceCents Int
+  sentOn       DateTime @db.Date
+  channel      String // EMAIL, POST
+}
+
+// ---------- 15. Utilities ----------
+
+enum MeterKind {
+  POWER
+  WATER
+}
+
+model Meter {
+  id        String         @id @default(cuid())
+  code      String         @unique // as on the readings import "Meter" column
+  kind      MeterKind
+  berthId   String?
+  productId String? // product billed for usage (unit rate)
+  active    Boolean        @default(true)
+  readings  MeterReading[]
+}
+
+model MeterReading {
+  id            String   @id @default(cuid())
+  meterId       String
+  meter         Meter    @relation(fields: [meterId], references: [id])
+  readAt        DateTime
+  reading       Decimal  @db.Decimal(12, 3) // CurrentReading
+  unitsUsed     Decimal? @db.Decimal(12, 3) // from import, or derived
+  invoiceLineId String? // set once billed
+
+  @@unique([meterId, readAt])
+}
+
+// ---------- Notes and documents ----------
+
+model Note {
+  id          String   @id @default(cuid())
+  entity      String // Customer, Vessel, Agreement, Berth
+  entityId    String
+  kind        String // NOTE, CALL, EMAIL, LETTER
+  body        String
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  @@index([entity, entityId])
+}
+
+model Attachment {
+  id         String   @id @default(cuid())
+  entity     String
+  entityId   String
+  fileName   String
+  mimeType   String
+  storageKey String // object storage key; files are not kept in the database
+  uploadedAt DateTime @default(now())
+
+  @@index([entity, entityId])
+}
