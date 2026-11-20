@@ -133,6 +133,13 @@ lines (`ngServiceHeader`, `ngServiceDetail`).
   as the current Excel report (InvoicedUnits / RMADays).
 - Utilisation: vessel length over berth length.
 - Berth status today, future availability, vessel compliance, ATB.
+- Operational reports kept from PacSoft's Rental menu: sites available
+  for rent, expiring occupiers and agreements, owner occupiers, private
+  renters, arrivals/departures and transfers, dock walk, liveaboard,
+  non-standard rates/discounts.
+- Finance reports kept: aged balance (summary/detail), statements,
+  transaction history, unallocated credits, GL invoices/receipts/journal,
+  unposted GL, invoiced in advance, sales by product and by site.
 - Every report exports to CSV and Excel.
 
 ### 15. Utilities

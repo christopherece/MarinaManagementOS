@@ -10,8 +10,56 @@ PC, 21 Nov 2026. Sources, all read-only:
   No method bodies were decompiled or copied.
 - Our own reporting SQL against WHProd/VSProd.
 
-Not done yet: walking the screens in the running app (needs Computer use
-turned on in the Claude desktop app on that PC). No database queries were run.
+- The running app's menus (21 Nov 2026, menus only, nothing saved). No
+  database queries were run.
+
+## Menu map of the running app
+
+Boatyard, POS and Asset Management are greyed out (not licensed or not used
+at Westhaven), which matches dropping them.
+
+- **Operations**: Home (marina map), Customers, Customer Charge, Vessels,
+  Vessel Charge, Lock Workstation, Send Message, Reports (Product Listing),
+  Database Management, Employee/Change Password, Record Filter.
+- **Accounting**: Account Management, Transaction Entry, Import Charges;
+  Processing (Batch Processing, GL Processing, Import/Export Processing,
+  Receipt Reconciliation, Product Sales Per Month, Auto Allocation, Auto
+  Payment); Accounting Reports (Aged Balance Summary/Detailed, Statement,
+  Statement Detailed, Statement Of Account, NG Statement, Transaction
+  History, Transactions by Type/Customer/Product, Tax Report, Print
+  Transactions, Unallocated Credits and Receipts, GL Invoices and Credits,
+  GL Receipts and Refunds, GL Journal, Unposted GL Transactions, GL Future
+  Income, GL Account Codes, Invoiced In Advance, Product Sales, Invoice/Credit
+  Note Totals by Product, Sales Reports, Sales By Site); Prepay (Prepay By
+  Customer).
+- **Rental**: Wait List, Rental Bookings, Business Agreement; Vessel
+  Movements (Grid, Form); Process (Rental Occupancy, Season Rental Renewal);
+  Reports (Occupancy Standard, Occupancy Statistics, Sites Available For
+  Rent, Expiring Occupiers, Expiring Rental Management Agreements, Owner
+  Occupiers, Private Renters, Rental Arrivals & Transfers, Rental Departures
+  & Transfers, Dock Walk, Vessel Movements, Liveaboard, Non-Standard
+  Rates/Discounts, RMA List, RMA List By Credit Plan); Rental Pool (Pool
+  Distribution, Customer Report); Site Inventory (Pier Inventory Check, Pier
+  Inventory Viewer, Reports); Utilities (Meter Reading Entry, Preview
+  Utility Invoicing, Auto Read Meters, Report).
+- **Inventory**: Manual Stock In/Out, Internal Inventory Usage, Stock Take,
+  Re-Order Report, Reports.
+- **Lease/Ownership**: Lease Ownership Wizard.
+- **User Reporting**: Quick Query, Smart Notes, Manage Views, Daily, Weekly,
+  Monthly, Annual, Ad Hoc.
+- **Administrator**: Admin Toolbar; Maintenance (Account, Vessel, Site,
+  Product, Smart Note, Messaging lookups); Setup (User, Workstation, Marina,
+  Invoice, Billing Agent, System, NG Usages, Parameter Setup); System
+  Administration (Event Viewer, Health Check, Setup Import, System
+  Processes); Discounts (Discount Codes, Discount Matrix).
+
+The account (customer) screen's toolbar: New, Save, Account, Print, Smart
+Note, Delete, Search, Transaction Entry, Marketing, CheckList, Send Message,
+Customer Change.
+
+Note: on start-up this copy showed "PacsoftMMS NG is not licensed. Please
+contact Pacsoft Support", and its status bar labels MMS_WH_P as
+"(Production)". Worth confirming both with Pacsoft and IT.
 
 ## Modules found, and what we do with them
 
