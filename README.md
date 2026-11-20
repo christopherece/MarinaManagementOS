@@ -26,4 +26,7 @@ npm run prisma:migrate --workspace apps/api     # create tables
 npm run dev                                     # API :4000, web :5173
 ```
 
+There is no sign-in yet, so the API listens on 127.0.0.1 only. Do not expose it
+to a network until users and roles (PLAN.md module 1) are built.
+
 `npm test` runs the domain and API tests. `npm run typecheck` checks all packages.

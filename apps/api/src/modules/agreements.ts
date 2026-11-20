@@ -41,7 +41,9 @@ agreements.post("/agreements", h(async (req, res) => {
       throw new HttpError(409, "Berth is already held for some of those dates");
     }
   }
-  res.status(201).json(await prisma.agreement.create({ data: input }));
+  // For an ownership the customer is the owner; keep ownerId in step so reports find it.
+  const data = input.type === "OWNERSHIP" ? { ...input, ownerId: input.customerId } : input;
+  res.status(201).json(await prisma.agreement.create({ data }));
 }));
 
 /** Berths free for the whole date range that fit the vessel. */
@@ -57,6 +59,8 @@ agreements.get("/availability", h(async (req, res) => {
       status: "ACTIVE",
       marinaId: q.marinaId,
       nominalLengthM: { gte: q.lengthM },
+      OR: [{ decommissionedOn: null }, { decommissionedOn: { gt: q.to } }],
+      blocks: { none: { startOn: { lte: q.to }, endOn: { gte: q.from } } },
       agreements: {
         none: {
           type: { in: [...OCCUPYING] },

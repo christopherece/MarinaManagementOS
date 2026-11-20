@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { monthRange, occupancy, overlapDays, ownershipForMonth, type BerthPeriod } from "@mmos/domain";
+import { monthRange, occupancy, operatingDays, ownershipForMonth, paidDaysInPeriod, type BerthPeriod } from "@mmos/domain";
 import { prisma } from "../db.js";
 import { h } from "../http.js";
 
@@ -15,7 +15,13 @@ reports.get("/reports/occupancy", h(async (req, res) => {
   const q = z.object({ marinaId: z.string(), year: z.coerce.number().int(), month: z.coerce.number().int().min(1).max(12) }).parse(req.query);
   const period = monthRange(q.year, q.month);
   const berths = await prisma.berth.findMany({
-    where: { marinaId: q.marinaId, OR: [{ decommissionedOn: null }, { decommissionedOn: { gt: period.start } }] },
+    // Inactive berths are out of service and add no capacity. Decommissioned berths
+    // still count for the days before their decommissioning date.
+    where: {
+      marinaId: q.marinaId,
+      status: { not: "INACTIVE" },
+      OR: [{ decommissionedOn: null }, { decommissionedOn: { gt: period.start } }],
+    },
     include: {
       blocks: true,
       agreements: { where: { type: "OWNERSHIP", status: { in: ["BOOKED", "RENTED", "COMPLETED"] } } },
@@ -23,15 +29,12 @@ reports.get("/reports/occupancy", h(async (req, res) => {
     },
   });
   const rows: BerthPeriod[] = berths.map((b) => {
-    const blocked = b.blocks.reduce((s, x) => s + overlapDays({ start: x.startOn, end: x.endOn }, period), 0);
-    const end = b.decommissionedOn && b.decommissionedOn <= period.end ? new Date(b.decommissionedOn.getTime() - 86_400_000) : period.end;
-    const availableDays = Math.max(0, overlapDays({ start: period.start, end }, period) - blocked);
-    const paidDays = b.invoiceLines.reduce(
-      (s, l) => s + (l.periodFrom && l.periodTo ? overlapDays({ start: l.periodFrom, end: l.periodTo }, period) : (l.days ?? 0)),
-      0,
-    );
+    const availableDays = operatingDays(period, b.decommissionedOn, b.blocks.map((x) => ({ start: x.startOn, end: x.endOn })));
+    const paidDays = b.invoiceLines.reduce((s, l) => s + paidDaysInPeriod(l, period), 0);
     const own = ownershipForMonth(
-      b.agreements.filter((a) => a.ownershipCategory && a.ownerId).map((a) => ({ start: a.startOn, end: a.endOn, category: a.ownershipCategory!, ownerCustomerId: a.ownerId! })),
+      b.agreements
+        .filter((a) => a.ownershipCategory)
+        .map((a) => ({ start: a.startOn, end: a.endOn, category: a.ownershipCategory!, ownerCustomerId: a.ownerId ?? a.customerId })),
       q.year,
       q.month,
     );

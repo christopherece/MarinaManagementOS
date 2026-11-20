@@ -10,7 +10,9 @@ import { reports } from "./modules/reports.js";
 
 export function createApp() {
   const app = express();
-  app.use(cors());
+  // Only the web app's own origin may call the API from a browser.
+  const origins = (process.env.CORS_ORIGIN ?? "http://localhost:5173").split(",").map((s) => s.trim());
+  app.use(cors({ origin: origins }));
   app.use(express.json());
   app.get("/api/health", (_req, res) => res.json({ ok: true }));
   for (const r of [berths, customers, agreements, billing, receivables, reports]) app.use("/api", r);

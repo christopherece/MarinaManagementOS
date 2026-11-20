@@ -92,3 +92,34 @@ describe("receivables", () => {
     expect(r.unallocatedCents).toBe(0);
   });
 });
+
+import { operatingDays, paidDaysInPeriod } from "../src/index.js";
+
+describe("operatingDays", () => {
+  const nov = monthRange(2026, 11);
+  it("counts overlapping blocks once", () => {
+    expect(operatingDays(nov, null, [
+      { start: d("2026-11-05"), end: d("2026-11-10") },
+      { start: d("2026-11-08"), end: d("2026-11-12") },
+      { start: d("2026-11-08"), end: d("2026-11-12") },
+    ])).toBe(22);
+  });
+  it("stops at decommissioning and ignores blocks after it", () => {
+    expect(operatingDays(nov, d("2026-11-16"), [{ start: d("2026-11-20"), end: d("2026-11-25") }])).toBe(15);
+    expect(operatingDays(nov, d("2026-11-01"), [])).toBe(0);
+  });
+});
+
+describe("paidDaysInPeriod", () => {
+  const nov = monthRange(2026, 11);
+  it("uses the recorded day quantity over the calendar span", () => {
+    expect(paidDaysInPeriod({ periodFrom: d("2026-11-01"), periodTo: d("2026-11-30"), days: 10 }, nov)).toBe(10);
+    expect(paidDaysInPeriod({ periodFrom: d("2026-11-01"), periodTo: d("2026-11-30"), days: 0 }, nov)).toBe(0);
+  });
+  it("shares a cross-month quantity by days in each month", () => {
+    expect(paidDaysInPeriod({ periodFrom: d("2026-11-16"), periodTo: d("2026-12-15"), days: 30 }, nov)).toBe(15);
+  });
+  it("falls back to the calendar span when no quantity is recorded", () => {
+    expect(paidDaysInPeriod({ periodFrom: d("2026-11-21"), periodTo: d("2026-12-31"), days: null }, nov)).toBe(10);
+  });
+});
