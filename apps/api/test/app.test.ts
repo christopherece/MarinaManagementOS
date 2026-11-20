@@ -9,8 +9,8 @@ describe("api", () => {
     expect(res.body).toEqual({ ok: true });
   });
 
-  it("rejects invalid input before touching the database", async () => {
-    const res = await request(createApp()).post("/api/agreements").send({ type: "NOPE" });
+  it("rejects invalid sign-in input before touching the database", async () => {
+    const res = await request(createApp()).post("/api/auth/login").send({ email: "not-an-email" });
     expect(res.status).toBe(400);
   });
 });
